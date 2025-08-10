@@ -36,5 +36,5 @@ target_include_directories(${APP} PUBLIC CachingUtil
                                          Utils
                                          WrapperUtils
                                          ${CMAKE_BINARY_DIR}
-                                         ../../../../include/QNN
+                                         ../../../../../include/QNN
                                          ./)

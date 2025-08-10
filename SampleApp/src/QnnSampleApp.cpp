@@ -1,7 +1,7 @@
 //==============================================================================
 //
-//  Copyright (c) 2019-2024 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //==============================================================================
@@ -42,7 +42,8 @@ sample_app::QnnSampleApp::QnnSampleApp(QnnFunctionPointers qnnFunctionPointers,
                                        sample_app::ProfilingLevel profilingLevel,
                                        bool dumpOutputs,
                                        std::string cachedBinaryPath,
-                                       std::string saveBinaryName)
+                                       std::string saveBinaryName,
+                                       unsigned int numInferences)
     : m_qnnFunctionPointers(qnnFunctionPointers),
       m_outputPath(outputPath),
       m_saveBinaryName(saveBinaryName),
@@ -54,7 +55,8 @@ sample_app::QnnSampleApp::QnnSampleApp(QnnFunctionPointers qnnFunctionPointers,
       m_dumpOutputs(dumpOutputs),
       m_backendLibraryHandle(backendLibraryHandle),
       m_isBackendInitialized(false),
-      m_isContextCreated(false) {
+      m_isContextCreated(false),
+      m_numInferences(numInferences) {
   split(m_inputListPaths, inputListPaths, ',');
   split(m_opPackagePaths, opPackagePaths, ',');
   if (m_outputPath.empty()) {
@@ -252,6 +254,25 @@ sample_app::StatusCode sample_app::QnnSampleApp::createContext() {
 
 // Free context after done.
 sample_app::StatusCode sample_app::QnnSampleApp::freeContext() {
+  // clear graph info first
+  if (m_graphsInfo) {
+    for (uint32_t gIdx = 0; gIdx < m_graphsCount; gIdx++) {
+      if (m_graphsInfo[gIdx]) {
+        if (nullptr != m_graphsInfo[gIdx]->graphName) {
+          free(m_graphsInfo[gIdx]->graphName);
+          m_graphsInfo[gIdx]->graphName = nullptr;
+        }
+        qnn_wrapper_api::freeQnnTensors(m_graphsInfo[gIdx]->inputTensors,
+                                        m_graphsInfo[gIdx]->numInputTensors);
+        qnn_wrapper_api::freeQnnTensors(m_graphsInfo[gIdx]->outputTensors,
+                                        m_graphsInfo[gIdx]->numOutputTensors);
+      }
+    }
+    free(*m_graphsInfo);
+  }
+  free(m_graphsInfo);
+  m_graphsInfo = nullptr;
+
   if (QNN_CONTEXT_NO_ERROR !=
       m_qnnFunctionPointers.qnnInterface.contextFree(m_context, m_profileBackendHandle)) {
     QNN_ERROR("Could not free context");
@@ -387,6 +408,7 @@ sample_app::StatusCode sample_app::QnnSampleApp::createFromBinary() {
     QNN_ERROR("Could not create context from binary.");
     returnStatus = StatusCode::FAILURE;
   }
+
   if (ProfilingLevel::OFF != m_profilingLevel) {
     extractBackendProfilingInfo(m_profileBackendHandle);
   }
@@ -549,6 +571,20 @@ sample_app::StatusCode sample_app::QnnSampleApp::isDevicePropertySupported() {
   return StatusCode::SUCCESS;
 }
 
+sample_app::StatusCode sample_app::QnnSampleApp::isFinalizeDeserializedGraphSupported() {
+  auto returnStatus = StatusCode::FAILURE;
+  if (nullptr != m_qnnFunctionPointers.qnnInterface.propertyHasCapability) {
+    auto qnnStatus = m_qnnFunctionPointers.qnnInterface.propertyHasCapability(
+        QNN_PROPERTY_GRAPH_SUPPORT_FINALIZE_DESERIALIZED_GRAPH);
+    if (QNN_PROPERTY_SUPPORTED != qnnStatus) {
+      QNN_ERROR("Device property is not supported");
+      return returnStatus;
+    }
+    returnStatus = StatusCode::SUCCESS;
+  }
+  return returnStatus;
+}
+
 sample_app::StatusCode sample_app::QnnSampleApp::createDevice() {
   if (nullptr != m_qnnFunctionPointers.qnnInterface.deviceCreate) {
     auto qnnStatus =
@@ -577,90 +613,92 @@ sample_app::StatusCode sample_app::QnnSampleApp::freeDevice() {
 // inputs from input_list based files and writes output to .raw files.
 sample_app::StatusCode sample_app::QnnSampleApp::executeGraphs() {
   auto returnStatus = StatusCode::SUCCESS;
-  for (size_t graphIdx = 0; graphIdx < m_graphsCount; graphIdx++) {
-    QNN_DEBUG("Starting execution for graphIdx: %d", graphIdx);
-    if (graphIdx >= m_inputFileLists.size()) {
-      QNN_ERROR("No Inputs available for: %d", graphIdx);
-      returnStatus = StatusCode::FAILURE;
-      break;
-    }
-    Qnn_Tensor_t* inputs  = nullptr;
-    Qnn_Tensor_t* outputs = nullptr;
-    if (iotensor::StatusCode::SUCCESS !=
-        m_ioTensor.setupInputAndOutputTensors(&inputs, &outputs, (*m_graphsInfo)[graphIdx])) {
-      QNN_ERROR("Error in setting up Input and output Tensors for graphIdx: %d", graphIdx);
-      returnStatus = StatusCode::FAILURE;
-      break;
-    }
-    auto inputFileList = m_inputFileLists[graphIdx];
-    auto graphInfo     = (*m_graphsInfo)[graphIdx];
-    if (!inputFileList.empty()) {
-      size_t totalCount           = inputFileList[0].size();
-      size_t inputFileIndexOffset = 0;
-      while (inputFileIndexOffset < totalCount) {
-        iotensor::StatusCode iotReturnStatus;
-        size_t numInputFilesPopulated;
-        size_t batchSize;
-        std::tie(iotReturnStatus, numInputFilesPopulated, batchSize) =
-            m_ioTensor.populateInputTensors(graphIdx,
-                                            inputFileList,
-                                            inputFileIndexOffset,
-                                            false,
-                                            m_inputNameToIndex[graphIdx],
-                                            inputs,
-                                            graphInfo,
-                                            m_inputDataType);
-        if (iotensor::StatusCode::SUCCESS != iotReturnStatus) {
-          returnStatus = StatusCode::FAILURE;
-        }
-        if (StatusCode::SUCCESS == returnStatus) {
-          QNN_DEBUG("Successfully populated input tensors for graphIdx: %d", graphIdx);
-          Qnn_ErrorHandle_t executeStatus = QNN_GRAPH_NO_ERROR;
-          executeStatus =
-              m_qnnFunctionPointers.qnnInterface.graphExecute(graphInfo.graph,
-                                                              inputs,
-                                                              graphInfo.numInputTensors,
-                                                              outputs,
-                                                              graphInfo.numOutputTensors,
-                                                              m_profileBackendHandle,
-                                                              nullptr);
-          if (QNN_GRAPH_NO_ERROR != executeStatus) {
+  for (unsigned int run = 0; run < m_numInferences; run++) {
+    for (size_t graphIdx = 0; graphIdx < m_graphsCount; graphIdx++) {
+      QNN_DEBUG("Starting execution for graphIdx: %d", graphIdx);
+      if (graphIdx >= m_inputFileLists.size()) {
+        QNN_ERROR("No Inputs available for: %d", graphIdx);
+        returnStatus = StatusCode::FAILURE;
+        break;
+      }
+      Qnn_Tensor_t* inputs  = nullptr;
+      Qnn_Tensor_t* outputs = nullptr;
+      if (iotensor::StatusCode::SUCCESS !=
+          m_ioTensor.setupInputAndOutputTensors(&inputs, &outputs, (*m_graphsInfo)[graphIdx])) {
+        QNN_ERROR("Error in setting up Input and output Tensors for graphIdx: %d", graphIdx);
+        returnStatus = StatusCode::FAILURE;
+        break;
+      }
+      auto inputFileList = m_inputFileLists[graphIdx];
+      auto graphInfo     = (*m_graphsInfo)[graphIdx];
+      if (!inputFileList.empty()) {
+        size_t totalCount           = inputFileList[0].size();
+        size_t inputFileIndexOffset = 0;
+        while (inputFileIndexOffset < totalCount) {
+          iotensor::StatusCode iotReturnStatus;
+          size_t numInputFilesPopulated;
+          size_t batchSize;
+          std::tie(iotReturnStatus, numInputFilesPopulated, batchSize) =
+              m_ioTensor.populateInputTensors(graphIdx,
+                                              inputFileList,
+                                              inputFileIndexOffset,
+                                              false,
+                                              m_inputNameToIndex[graphIdx],
+                                              inputs,
+                                              graphInfo,
+                                              m_inputDataType);
+          if (iotensor::StatusCode::SUCCESS != iotReturnStatus) {
             returnStatus = StatusCode::FAILURE;
           }
           if (StatusCode::SUCCESS == returnStatus) {
-            QNN_DEBUG("Successfully executed graphIdx: %d ", graphIdx);
-#ifndef __hexagon__
-            if (iotensor::StatusCode::SUCCESS !=
-                m_ioTensor.writeOutputTensors(graphIdx,
-                                              inputFileIndexOffset,
-                                              graphInfo.graphName,
-                                              outputs,
-                                              graphInfo.numOutputTensors,
-                                              m_outputDataType,
-                                              m_graphsCount,
-                                              m_outputPath,
-                                              numInputFilesPopulated,
-                                              batchSize)) {
+            QNN_DEBUG("Successfully populated input tensors for graphIdx: %d", graphIdx);
+            Qnn_ErrorHandle_t executeStatus = QNN_GRAPH_NO_ERROR;
+            executeStatus =
+                m_qnnFunctionPointers.qnnInterface.graphExecute(graphInfo.graph,
+                                                                inputs,
+                                                                graphInfo.numInputTensors,
+                                                                outputs,
+                                                                graphInfo.numOutputTensors,
+                                                                m_profileBackendHandle,
+                                                                nullptr);
+            if (QNN_GRAPH_NO_ERROR != executeStatus) {
               returnStatus = StatusCode::FAILURE;
             }
+            if (StatusCode::SUCCESS == returnStatus) {
+              QNN_DEBUG("Successfully executed graphIdx: %d ", graphIdx);
+#ifndef __hexagon__
+              if (iotensor::StatusCode::SUCCESS !=
+                  m_ioTensor.writeOutputTensors(graphIdx,
+                                                inputFileIndexOffset,
+                                                graphInfo.graphName,
+                                                outputs,
+                                                graphInfo.numOutputTensors,
+                                                m_outputDataType,
+                                                m_graphsCount,
+                                                m_outputPath,
+                                                numInputFilesPopulated,
+                                                batchSize)) {
+                returnStatus = StatusCode::FAILURE;
+              }
 #endif
+            }
+            inputFileIndexOffset += numInputFilesPopulated;
           }
-          inputFileIndexOffset += numInputFilesPopulated;
-        }
-        if (StatusCode::SUCCESS != returnStatus) {
-          QNN_ERROR("Execution of Graph: %d failed!", graphIdx);
-          break;
+          if (StatusCode::SUCCESS != returnStatus) {
+            QNN_ERROR("Execution of Graph: %d failed!", graphIdx);
+            break;
+          }
         }
       }
+      m_ioTensor.tearDownInputAndOutputTensors(
+          inputs, outputs, graphInfo.numInputTensors, graphInfo.numOutputTensors);
+      inputs  = nullptr;
+      outputs = nullptr;
+      if (StatusCode::SUCCESS != returnStatus) {
+        break;
+      }
     }
-    m_ioTensor.tearDownInputAndOutputTensors(
-        inputs, outputs, graphInfo.numInputTensors, graphInfo.numOutputTensors);
-    inputs  = nullptr;
-    outputs = nullptr;
-    if (StatusCode::SUCCESS != returnStatus) {
-      break;
-    }
-  }
+  } /* loop numInferences */
 
   qnn_wrapper_api::freeGraphsInfo(&m_graphsInfo, m_graphsCount);
   m_graphsInfo = nullptr;

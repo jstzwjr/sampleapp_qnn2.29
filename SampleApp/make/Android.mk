@@ -20,7 +20,7 @@ endif
 
 #============================ Define Common Variables ===============================================================
 # Include paths
-PACKAGE_C_INCLUDES += -I $(LOCAL_PATH)/../../../../include/QNN
+PACKAGE_C_INCLUDES += -I $(LOCAL_PATH)/../../../../../include/QNN
 PACKAGE_C_INCLUDES += -I $(LOCAL_PATH)/../src/
 PACKAGE_C_INCLUDES += -I $(LOCAL_PATH)/../src/CachingUtil
 PACKAGE_C_INCLUDES += -I $(LOCAL_PATH)/../src/Log

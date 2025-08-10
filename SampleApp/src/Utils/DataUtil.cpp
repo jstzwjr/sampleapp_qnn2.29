@@ -1,7 +1,7 @@
 //==============================================================================
 //
-//  Copyright (c) 2019-2024 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //==============================================================================
@@ -18,7 +18,8 @@
 #include "PAL/FileOp.hpp"
 #include "PAL/Path.hpp"
 #endif
-
+#include <fcntl.h>
+#include <sys/types.h>
 using namespace qnn;
 using namespace qnn::tools;
 

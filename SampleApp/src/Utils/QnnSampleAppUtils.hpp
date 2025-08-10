@@ -72,6 +72,8 @@ bool deepCopyQnnTensorInfo(Qnn_Tensor_t *dst, const Qnn_Tensor_t *src);
 
 QnnLog_Level_t parseLogLevel(std::string logLevelString);
 
+unsigned int parseUintArg(std::string numString);
+
 void inline exitWithMessage(std::string &&msg, int code) {
   std::cerr << msg << std::endl;
   std::exit(code);

@@ -1,7 +1,7 @@
 //==============================================================================
 //
-//  Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //==============================================================================
@@ -39,7 +39,8 @@ class QnnSampleApp {
                ProfilingLevel profilingLevel           = ProfilingLevel::OFF,
                bool dumpOutputs                        = false,
                std::string cachedBinaryPath            = "",
-               std::string saveBinaryName              = "");
+               std::string saveBinaryName              = "",
+               unsigned int numInferences              = 1);
 
   // @brief Print a message to STDERR then return a nonzero
   //  exit status.
@@ -67,15 +68,13 @@ class QnnSampleApp {
 
   StatusCode terminateBackend();
 
-  StatusCode freeGraphs();
-
-  Qnn_ContextHandle_t getContext();
-
   StatusCode initializeProfiling();
 
   std::string getBackendBuildId();
 
   StatusCode isDevicePropertySupported();
+
+  StatusCode isFinalizeDeserializedGraphSupported();
 
   StatusCode createDevice();
 
@@ -122,6 +121,7 @@ class QnnSampleApp {
   Qnn_LogHandle_t m_logHandle         = nullptr;
   Qnn_BackendHandle_t m_backendHandle = nullptr;
   Qnn_DeviceHandle_t m_deviceHandle   = nullptr;
+  unsigned int m_numInferences;
 };
 }  // namespace sample_app
 }  // namespace tools

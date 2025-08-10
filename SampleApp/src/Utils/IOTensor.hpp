@@ -1,7 +1,7 @@
 //==============================================================================
 //
-//  Copyright (c) 2020, 2022-2024 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //==============================================================================
@@ -61,6 +61,10 @@ class IOTensor {
       Qnn_Tensor_t *inputs,
       qnn_wrapper_api::GraphInfo_t graphInfo,
       iotensor::InputDataType inputDataType);
+
+  StatusCode populateInputTensorsWithRandValues(uint32_t graphIdx,
+                                                Qnn_Tensor_t *inputs,
+                                                qnn_wrapper_api::GraphInfo_t graphInfo);
 
   StatusCode tearDownInputAndOutputTensors(Qnn_Tensor_t *inputs,
                                            Qnn_Tensor_t *outputs,

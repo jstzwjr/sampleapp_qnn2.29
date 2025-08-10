@@ -11,7 +11,7 @@ SRC_DIR_PAL_LINUX := src/PAL/src/linux
 SRC_DIR_PAL_COMMON := src/PAL/src/common
 SRC_DIR_UTILS := src/Utils
 SRC_DIR_WRAPPER_UTILS := src/WrapperUtils
-QNN_API_INCLUDE := ../../../include/QNN
+QNN_API_INCLUDE := ../../../../include/QNN
 PAL_INCLUDE := src/PAL/include
 
 # Checking if clang++ is present. If not switch to clang++

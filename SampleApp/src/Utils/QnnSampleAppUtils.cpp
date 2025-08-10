@@ -294,7 +294,7 @@ bool sample_app::copyGraphsInfoV3(const QnnSystemContext_GraphInfoV3_t *graphInf
   graphInfoDst->graphName = nullptr;
   if (graphInfoSrc->graphName) {
     graphInfoDst->graphName =
-            pal::StringOp::strndup(graphInfoSrc->graphName, strlen(graphInfoSrc->graphName));
+        pal::StringOp::strndup(graphInfoSrc->graphName, strlen(graphInfoSrc->graphName));
   }
   graphInfoDst->inputTensors    = nullptr;
   graphInfoDst->numInputTensors = 0;
@@ -433,4 +433,12 @@ QnnLog_Level_t sample_app::parseLogLevel(std::string logLevelString) {
   }
   QNN_FUNCTION_EXIT_LOG;
   return parsedLogLevel;
+}
+
+unsigned int sample_app::parseUintArg(std::string numString) {
+  unsigned int num = 0;
+  std::stringstream numStream;
+  numStream << numString;
+  numStream >> num;
+  return num;
 }

@@ -1,7 +1,7 @@
 //==============================================================================
 //
-//  Copyright (c) 2019-2022 Qualcomm Technologies, Inc.
-//  All Rights Reserved.
+//  Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+//  All rights reserved.
 //  Confidential and Proprietary - Qualcomm Technologies, Inc.
 //
 //==============================================================================
@@ -102,6 +102,9 @@ void showHelp() {
          "                                  exclusive. Both options should not be specified at\n"
          "                                  the same time.\n"
       << "\n"
+      << "  --num_inferences    <VAL>       Specifies the number of inferences.\n"
+         "                                  Loops over the input_list until the number of "
+         "inferences has transpired.\n"
 #ifdef QNN_ENABLE_DEBUG
       << "  --log_level                     Specifies max logging level to be set.  Valid "
          "settings: \n"
@@ -152,7 +155,8 @@ std::unique_ptr<sample_app::QnnSampleApp> processCommandLine(int argc,
     OPT_RETRIEVE_CONTEXT = 11,
     OPT_SAVE_CONTEXT     = 12,
     OPT_VERSION          = 13,
-    OPT_SYSTEM_LIBRARY   = 14
+    OPT_SYSTEM_LIBRARY   = 14,
+    OPT_NUM_INFERENCES   = 15
   };
 
   // Create the command line options
@@ -170,6 +174,7 @@ std::unique_ptr<sample_app::QnnSampleApp> processCommandLine(int argc,
       {"log_level", pal::required_argument, NULL, OPT_LOG_LEVEL},
       {"retrieve_context", pal::required_argument, NULL, OPT_RETRIEVE_CONTEXT},
       {"save_context", pal::required_argument, NULL, OPT_SAVE_CONTEXT},
+      {"num_inferences", pal::required_argument, NULL, OPT_NUM_INFERENCES},
       {"system_library", pal::required_argument, NULL, OPT_SYSTEM_LIBRARY},
       {"version", pal::no_argument, NULL, OPT_VERSION},
       {NULL, 0, NULL, 0}};
@@ -191,6 +196,7 @@ std::unique_ptr<sample_app::QnnSampleApp> processCommandLine(int argc,
   std::string saveBinaryName;
   QnnLog_Level_t logLevel{QNN_LOG_LEVEL_ERROR};
   std::string systemLibraryPath;
+  unsigned int numInferences = 1;
   while ((opt = pal::getOptLongOnly(argc, argv, "", s_longOptions, &longIndex)) != -1) {
     switch (opt) {
       case OPT_HELP:
@@ -279,6 +285,18 @@ std::unique_ptr<sample_app::QnnSampleApp> processCommandLine(int argc,
         }
         break;
 
+      case OPT_NUM_INFERENCES:
+        numInferences = sample_app::parseUintArg(pal::g_optArg);
+        if (numInferences == 0) {
+          std::cerr << "ERROR: Invalid argument passed to num_inferences: "
+                    << argv[pal::g_optInd - 1] << "\nNumber of inferences must be >= 1.\n";
+          showHelp();
+          std::exit(EXIT_FAILURE);
+        }
+
+        QNN_INFO("Running %u instances of graph inferences.\n", numInferences);
+        break;
+
       default:
         std::cerr << "ERROR: Invalid argument passed: " << argv[pal::g_optInd - 1]
                   << "\nPlease check the Arguments section in the description below.\n";
@@ -361,7 +379,8 @@ std::unique_ptr<sample_app::QnnSampleApp> processCommandLine(int argc,
                                                                              parsedProfilingLevel,
                                                                              dumpOutputs,
                                                                              cachedBinaryPath,
-                                                                             saveBinaryName));
+                                                                             saveBinaryName,
+                                                                             numInferences));
   return app;
 }
 
@@ -371,77 +390,88 @@ std::unique_ptr<sample_app::QnnSampleApp> processCommandLine(int argc,
 
 int main(int argc, char** argv) {
   using namespace qnn::tools;
+  int32_t status = EXIT_SUCCESS;
 
   if (!qnn::log::initializeLogging()) {
     std::cerr << "ERROR: Unable to initialize logging!\n";
     return EXIT_FAILURE;
   }
 
-  {
-    bool loadFromCachedBinary{false};
-    std::unique_ptr<sample_app::QnnSampleApp> app =
-        sample_app::processCommandLine(argc, argv, loadFromCachedBinary);
+  bool loadFromCachedBinary{false};
+  std::unique_ptr<sample_app::QnnSampleApp> app =
+      sample_app::processCommandLine(argc, argv, loadFromCachedBinary);
 
-    if (nullptr == app) {
-      return EXIT_FAILURE;
+  if (nullptr == app) {
+    return EXIT_FAILURE;
+  }
+
+  QNN_INFO("qnn-sample-app build version: %s", qnn::tools::getBuildId().c_str());
+  QNN_INFO("Backend        build version: %s", app->getBackendBuildId().c_str());
+
+  bool deviceCreated  = false;
+  bool contextCreated = false;
+
+  if (sample_app::StatusCode::SUCCESS != app->initialize()) {
+    status = app->reportError("Initialization failure");
+  }
+
+  if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->initializeBackend()) {
+    status = app->reportError("Backend Initialization failure");
+  }
+
+  auto devicePropertySupportStatus = app->isDevicePropertySupported();
+  if ((status == EXIT_SUCCESS) && sample_app::StatusCode::FAILURE != devicePropertySupportStatus) {
+    deviceCreated = (sample_app::StatusCode::SUCCESS == app->createDevice());
+    if (!deviceCreated) {
+      status = app->reportError("Device Creation failure");
     }
+  }
 
-    QNN_INFO("qnn-sample-app build version: %s", qnn::tools::getBuildId().c_str());
-    QNN_INFO("Backend        build version: %s", app->getBackendBuildId().c_str());
+  if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->initializeProfiling()) {
+    status = app->reportError("Profiling Initialization failure");
+  }
 
-    if (sample_app::StatusCode::SUCCESS != app->initialize()) {
-      return app->reportError("Initialization failure");
+  if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->registerOpPackages()) {
+    status = app->reportError("Register Op Packages failure");
+  }
+
+  if (!loadFromCachedBinary) {
+    contextCreated = (sample_app::StatusCode::SUCCESS == app->createContext());
+    if (!contextCreated) {
+      status = app->reportError("Context Creation failure");
     }
-
-    if (sample_app::StatusCode::SUCCESS != app->initializeBackend()) {
-      return app->reportError("Backend Initialization failure");
+    if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->composeGraphs()) {
+      status = app->reportError("Graph Prepare failure");
     }
-
-    auto devicePropertySupportStatus = app->isDevicePropertySupported();
-    if (sample_app::StatusCode::FAILURE != devicePropertySupportStatus) {
-      auto createDeviceStatus = app->createDevice();
-      if (sample_app::StatusCode::SUCCESS != createDeviceStatus) {
-        return app->reportError("Device Creation failure");
+    if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->finalizeGraphs()) {
+      status = app->reportError("Graph Finalize failure");
+    }
+  } else {
+    contextCreated = (sample_app::StatusCode::SUCCESS == app->createFromBinary());
+    if (!contextCreated) {
+      status = app->reportError("Create From Binary failure");
+    }
+    if (sample_app::StatusCode::SUCCESS == app->isFinalizeDeserializedGraphSupported()) {
+      if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->finalizeGraphs()) {
+        status = app->reportError("Deserialized Graph Finalize failure");
       }
     }
+  }
 
-    if (sample_app::StatusCode::SUCCESS != app->initializeProfiling()) {
-      return app->reportError("Profiling Initialization failure");
-    }
+  if ((status == EXIT_SUCCESS) && sample_app::StatusCode::SUCCESS != app->executeGraphs()) {
+    status = app->reportError("Graph Execution failure");
+  }
 
-    if (sample_app::StatusCode::SUCCESS != app->registerOpPackages()) {
-      return app->reportError("Register Op Packages failure");
-    }
+  // No checks for status since we want to clean up context, device, and backend even if there is an
+  // upstream failure.
+  if (contextCreated && sample_app::StatusCode::SUCCESS != app->freeContext()) {
+    status = app->reportError("Context Free failure");
+  }
 
-    if (!loadFromCachedBinary) {
-      if (sample_app::StatusCode::SUCCESS != app->createContext()) {
-        return app->reportError("Context Creation failure");
-      }
-      if (sample_app::StatusCode::SUCCESS != app->composeGraphs()) {
-        return app->reportError("Graph Prepare failure");
-      }
-      if (sample_app::StatusCode::SUCCESS != app->finalizeGraphs()) {
-        return app->reportError("Graph Finalize failure");
-      }
-    } else {
-      if (sample_app::StatusCode::SUCCESS != app->createFromBinary()) {
-        return app->reportError("Create From Binary failure");
-      }
-    }
-
-    if (sample_app::StatusCode::SUCCESS != app->executeGraphs()) {
-      return app->reportError("Graph Execution failure");
-    }
-
-    if (sample_app::StatusCode::SUCCESS != app->freeContext()) {
-      return app->reportError("Context Free failure");
-    }
-
-    if (sample_app::StatusCode::FAILURE != devicePropertySupportStatus) {
-      auto freeDeviceStatus = app->freeDevice();
-      if (sample_app::StatusCode::SUCCESS != freeDeviceStatus) {
-        return app->reportError("Device Free failure");
-      }
+  if (deviceCreated && sample_app::StatusCode::FAILURE != devicePropertySupportStatus) {
+    auto freeDeviceStatus = app->freeDevice();
+    if (sample_app::StatusCode::SUCCESS != freeDeviceStatus) {
+      status = app->reportError("Device Free failure");
     }
   }
 
@@ -451,6 +481,5 @@ int main(int argc, char** argv) {
   if (sg_modelHandle) {
     pal::dynamicloading::dlClose(sg_modelHandle);
   }
-
-  return EXIT_SUCCESS;
+  return status;
 }
