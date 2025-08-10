@@ -102,7 +102,7 @@ $(OBJ_DIR_WRAPPER_UTILS)/%.o: $(SRC_DIR_WRAPPER_UTILS)/%.cpp
 directories := $(TARGET_DIR) $(OBJ_DIR) $(OBJ_DIR_LOG) $(OBJ_DIR_PAL) $(OBJ_DIR_UTILS) $(OBJ_DIR_WRAPPER_UTILS)
 
 # Compile
-$(qnn-sample-app): obj/x86_64-linux-clang/main.o obj/x86_64-linux-clang/QnnSampleApp.o $(OBJECTS_LOG) $(OBJECTS_PAL) $(OBJECTS_UTILS) $(OBJECTS_WRAPPER_UTILS) | $(directories)
+$(qnn-sample-app): $(OBJECTS) $(OBJECTS_LOG) $(OBJECTS_PAL) $(OBJECTS_UTILS) $(OBJECTS_WRAPPER_UTILS) | $(directories)
 	$(CXX) $(CXXFLAGS) $(LINKFLAGS) -o $@ $^ $(LIBS)
 
 # rule for object directory resource

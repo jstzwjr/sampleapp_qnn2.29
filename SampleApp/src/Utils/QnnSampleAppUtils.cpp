@@ -41,6 +41,17 @@ void sample_app::split(std::vector<std::string> &splitString,
   }
 }
 
+std::string sample_app::stripWhitespace(std::string &str) {
+  const std::string whitespace{" \t\n\v\f\r"};
+  if (!str.empty()) {
+    str.erase(str.begin(), (str.begin() + str.find_first_not_of(whitespace)));
+  }
+  if (!str.empty() && std::isspace(str.back())) {
+    str.erase(str.find_last_not_of(whitespace) + 1);
+  }
+  return str;
+}
+
 void sample_app::parseInputFilePaths(std::vector<std::string> &inputFilePaths,
                                      std::vector<std::string> &paths,
                                      std::string separator) {

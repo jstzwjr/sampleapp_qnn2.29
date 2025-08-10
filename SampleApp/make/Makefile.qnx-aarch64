@@ -18,9 +18,9 @@ else
 endif
 PAL_INCLUDE := src/PAL/include
 
-QNN_TARGET ?= aarch64-oe-linux-gcc8.2
+QNN_TARGET ?= aarch64-qnx
 export TARGET_DIR := ./bin/$(QNN_TARGET)
-CXX=$(QNN_AARCH64_LINUX_OE_GCC_82)/sysroots/x86_64-oesdk-linux/usr/bin/aarch64-oe-linux/aarch64-oe-linux-g++ --sysroot=$(QNN_AARCH64_LINUX_OE_GCC_82)/sysroots/aarch64-oe-linux
+CXX=$(QNX_HOST)/usr/bin/aarch64-unknown-nto-qnx7.1.0-g++
 
 qnn-sample-app := $(TARGET_DIR)/qnn-sample-app
 
@@ -32,7 +32,7 @@ sample_app_all: $(qnn-sample-app)
 INCLUDES += -I$(SRC_DIR) -I$(SRC_DIR_LOG) -I$(SRC_DIR_UTILS) -I$(SRC_DIR_WRAPPER_UTILS) -I$(PAL_INCLUDE) -I$(QNN_API_INCLUDE)
 
 # set compiler flags
-COMMON_CXXFLAGS = -ldl -std=gnu++11 -fPIC -Wl,-lstdc++ -Wall -Werror -fno-exceptions -fno-rtti -fPIC -pg $(INCLUDES)
+COMMON_CXXFLAGS = -D_QNX_SOURCE -std=c++11 -fPIC -Wall -Werror -Wl,-lc++ -fno-exceptions -fno-rtti -fPIC -pg $(INCLUDES)
 COMMON_LDFLAGS = -shared -s -fPIC
 
 ifdef QNN_DEBUG_ENABLE
@@ -66,8 +66,6 @@ OBJECTS_PAL := $(patsubst %.cpp,$(OBJ_DIR_PAL)/%.o,$(foreach x,$(SOURCES_PAL),$(
 OBJECTS_UTILS := $(patsubst %.cpp,$(OBJ_DIR_UTILS)/%.o,$(foreach x,$(SOURCES_UTILS),$(notdir $(x))))
 OBJECTS_WRAPPER_UTILS := $(patsubst %.cpp,$(OBJ_DIR_WRAPPER_UTILS)/%.o,$(foreach x,$(SOURCES_WRAPPER_UTILS),$(notdir $(x))))
 
-LIBS=-ldl
-
 # Rule to make executable
 .PHONY: qnn-sample-app
 qnn-sample-app: $(qnn-sample-app)
@@ -95,8 +93,8 @@ $(OBJ_DIR_WRAPPER_UTILS)/%.o: $(SRC_DIR_WRAPPER_UTILS)/%.cpp
 directories := $(TARGET_DIR) $(OBJ_DIR) $(OBJ_DIR_LOG) $(OBJ_DIR_PAL) $(OBJ_DIR_UTILS) $(OBJ_DIR_WRAPPER_UTILS)
 
 # Compile
-$(qnn-sample-app): obj/$(QNN_TARGET)/main.o obj/$(QNN_TARGET)/QnnSampleApp.o $(OBJECTS_LOG) $(OBJECTS_PAL) $(OBJECTS_UTILS) $(OBJECTS_WRAPPER_UTILS) | $(directories)
-	$(CXX) $(CXXFLAGS) $(LINKFLAGS) -o $@ $^ $(LIBS)
+$(qnn-sample-app): obj/aarch64-qnx/main.o obj/aarch64-qnx/QnnSampleApp.o $(OBJECTS_LOG) $(OBJECTS_PAL) $(OBJECTS_UTILS) $(OBJECTS_WRAPPER_UTILS) | $(directories)
+	$(CXX) $(CXXFLAGS) $(LINKFLAGS) -o $@ $^
 
 # rule for object directory resource
 $(OBJECTS): | $(OBJ_DIR)

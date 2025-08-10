@@ -109,9 +109,8 @@ class QnnSampleApp {
   iotensor::InputDataType m_inputDataType;
   ProfilingLevel m_profilingLevel;
   bool m_dumpOutputs;
-  qnn_wrapper_api::GraphInfo_t **m_graphsInfo;
+  qnn_wrapper_api::GraphInfo_t **m_graphsInfo = nullptr;
   uint32_t m_graphsCount;
-  void *m_backendLibraryHandle;
   iotensor::IOTensor m_ioTensor;
   bool m_isBackendInitialized;
   bool m_isContextCreated;

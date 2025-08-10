@@ -53,7 +53,6 @@ sample_app::QnnSampleApp::QnnSampleApp(QnnFunctionPointers qnnFunctionPointers,
       m_inputDataType(inputDataType),
       m_profilingLevel(profilingLevel),
       m_dumpOutputs(dumpOutputs),
-      m_backendLibraryHandle(backendLibraryHandle),
       m_isBackendInitialized(false),
       m_isContextCreated(false),
       m_numInferences(numInferences) {

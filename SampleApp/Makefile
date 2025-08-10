@@ -26,7 +26,7 @@ export CXX := clang++-9
 
 .PHONY: all $(EXE_SOURCES) all_x86 all_android hexagon
 
-all: $(EXE_SOURCES) all_x86 all_android all_linux_oe_aarch64_gcc82 all_linux_oe_aarch64_gcc93 all_linux_oe_aarch64_gcc112  all_ubuntu_aarch64_gcc94
+all: $(EXE_SOURCES) all_x86 all_android  all_linux_oe_aarch64_gcc93 all_linux_oe_aarch64_gcc112  
 
 # Combined Targets
 clean: clean_x86 clean_android clean_qnx
@@ -83,30 +83,10 @@ ifeq ($(QNN_AARCH64_LINUX_OE_GCC_93),)
 endif
 
 
-all_linux_oe_aarch64_gcc82: check_linux_oe_aarch64_gcc82
-	$(call build_if_exists,$(sample_app),-$(MAKE) -f $(make_dir)/Makefile.oe-linux-aarch64-gcc8.2)
-
-clean_linux_oe_aarch64_gcc82:
-	@rm -rf bin/aarch64-oe-linux-gcc8.2 obj/aarch64-oe-linux-gcc8.2
-
-check_linux_oe_aarch64_gcc82:
-ifeq ($(QNN_AARCH64_LINUX_OE_GCC_82),)
-	$(error ERROR: QNN_AARCH64_LINUX_OE_GCC_82 not set, skipping compilation for Linux OE platform.)
-endif
 
 
 
 
-all_ubuntu_aarch64_gcc94: check_ubuntu_aarch64_gcc94
-	$(call build_if_exists,$(sample_app),-$(MAKE) -f $(make_dir)/Makefile.ubuntu-aarch64-gcc9.4)
-
-clean_ubuntu_aarch64_gcc94:
-	@rm -rf bin/aarch64-ubuntu-gcc9.4 obj/aarch64-ubuntu-gcc9.4
-
-check_ubuntu_aarch64_gcc94:
-ifeq ($(QNN_AARCH64_UBUNTU_GCC_94),)
-	$(error ERROR: QNN_AARCH64_UBUNTU_GCC_94 not set, skipping compilation for Ubuntu platform.)
-endif
 
 
 # utilities

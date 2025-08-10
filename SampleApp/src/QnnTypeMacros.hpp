@@ -471,23 +471,31 @@ inline void setQnnTensorMemHandle(Qnn_Tensor_t* tensor, Qnn_MemHandle_t handle) 
   setQnnTensorMemHandle(*tensor, handle);
 }
 
+// parasoft-instrumentation coverage off
 inline void setQnnTensorClientBufRetrieve(Qnn_Tensor_t& tensor,
                                           Qnn_TensorRetrieveRaw_t* const retrieve) {
   if (tensor.version == QNN_TENSOR_VERSION_2) {
     tensor.v2.retrieveRaw = retrieve;
   }
 }
+// parasoft-instrumentation coverage on
+// parasoft-instrumentation coverage off
 inline void setQnnTensorClientBufRetrieve(Qnn_Tensor_t* const tensor,
                                           Qnn_TensorRetrieveRaw_t* const retrieve) {
   setQnnTensorClientBufRetrieve(*tensor, retrieve);
 }
+// parasoft-instrumentation coverage on
+// parasoft-instrumentation coverage off
 inline void setQnnTensorClientBufRetrieve(Qnn_Tensor_t& tensor, Qnn_TensorRetrieveRaw_t& retrieve) {
   setQnnTensorClientBufRetrieve(tensor, &retrieve);
 }
+// parasoft-instrumentation coverage on
+// parasoft-instrumentation coverage off
 inline void setQnnTensorClientBufRetrieve(Qnn_Tensor_t* const tensor,
                                           Qnn_TensorRetrieveRaw_t& retrieve) {
   setQnnTensorClientBufRetrieve(*tensor, &retrieve);
 }
+// parasoft-instrumentation coverage on
 
 inline Qnn_TensorRetrieveRaw_t* getQnnTensorClientBufRetrieve(const Qnn_Tensor_t& tensor) {
   if (tensor.version == QNN_TENSOR_VERSION_2) {

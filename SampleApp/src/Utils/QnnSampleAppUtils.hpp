@@ -50,6 +50,8 @@ void split(std::vector<std::string> &splitString,
            const std::string &tokenizedString,
            const char separator);
 
+std::string stripWhitespace(std::string &str);
+
 bool copyMetadataToGraphsInfo(const QnnSystemContext_BinaryInfo_t *binaryInfo,
                               qnn_wrapper_api::GraphInfo_t **&graphsInfo,
                               uint32_t &graphsCount);
